@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Full-Stack To-Do App</title>
+    <style>
+      body { font-family: sans-serif; margin: 40px; }
+      ul { list-style-type: none; padding: 0; }
+      li { margin: 10px 0; font-size: 18px; }
+      button { margin-left: 10px; cursor: pointer; }
+    </style>
+  </head>
+  <body>
+    <input type="text" id="taskInput" placeholder="Enter a new task">
+    <button id="addBtn">Add Task</button>
+    <ul id="list"></ul>
+
+    <script>
+      const button = document.getElementById("addBtn");
+      const taskInput = document.getElementById("taskInput");
+      const taskList = document.getElementById("list");
+      const SERVER_URL = "http://localhost:3000/todo-app";
+      
+      // 1. READ (GET)
+      async function loadServerTasks(){
+        try {
+          const response = await fetch(SERVER_URL);
+          const serverTasks = await response.json();
+          
+          serverTasks.forEach(function(taskObj) {
+            createTaskElement(taskObj);
+          });
+        } catch (error) { 
+          console.error("Could not load the Backend server:", error);
+        }
+      }
+      loadServerTasks();
+
+      // 2. CREATE (POST)
+      button.addEventListener("click", addTask);
+
+      async function addTask(){
+        const taskText = taskInput.value.trim();
+        if(taskText === ""){ return; }
+        
+        const newTaskObj = {
+          text: taskText, 
+          isCompleted: false
+        };
+
+        // UI Optimistic Update
+        createTaskElement(newTaskObj);
+        taskInput.value = "";
+        
+        try { 
+          await fetch(SERVER_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(newTaskObj)
+          });
+          console.log("Successfully sent to backend");
+        } catch (error) {
+          console.error("Failed to send to server:", error);
+        }
+      }
+      
+      // 3. UI FACTORY MACHINE & SYNCHRONIZERS
+      function createTaskElement(taskObj){
+        const newLi = document.createElement("li");
+        
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.checked = taskObj.isCompleted;
+        
+        const deleteBtn = document.createElement("button");
+        deleteBtn.textContent = "X";
+        
+        const taskNode = document.createTextNode(" " + taskObj.text + " ");
+        
+        newLi.appendChild(checkbox);
+        newLi.appendChild(taskNode);
+        newLi.appendChild(deleteBtn);
+        taskList.appendChild(newLi);
+        
+        // Initial Style State
+        if(taskObj.isCompleted) {
+          newLi.style.color = "gray";
+          newLi.style.textDecoration = "line-through";
+        }
+        
+        // UPDATE (PUT)
+        checkbox.addEventListener("change", async function () {
+          taskObj.isCompleted = checkbox.checked;
+          if (checkbox.checked){
+            newLi.style.color = "grey";
+            newLi.style.textDecoration = "line-through";
+          } else {
+            newLi.style.color = "black";
+            newLi.style.textDecoration = "none";
+          }
+
+          try {
+            await fetch(`${SERVER_URL}/${taskObj.id}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ isCompleted: checkbox.checked })
+            });
+            console.log("Status updated on backend");
+          } catch (error) {
+            console.error("Failed to update status on server:", error);
+          }
+        });
+
+        // DELETE (DELETE)
+        deleteBtn.addEventListener("click", async function(){
+          newLi.remove();
+          try {
+            await fetch(`${SERVER_URL}/${taskObj.id}`, {
+              method: "DELETE"
+            });
+            console.log("Deleted from backend");
+          } catch (error) {
+            console.error("Failed to delete from server:", error);
+          }
+        });
+      }
+    </script>
+  </body>
+</html>
